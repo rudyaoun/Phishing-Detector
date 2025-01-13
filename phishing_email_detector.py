@@ -14,7 +14,7 @@ class PhishingRNN(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim):
         super(PhishingRNN, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.sigmoid = nn.Sigmoid()
 
@@ -80,6 +80,9 @@ def prep_data(emails, labels):
     val_data = TensorDataset(X_val, y_val)
     train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
+    for inputs, targets in train_loader:
+        print(f"Inputs shape: {inputs.shape}")  # Should be (batch_size, max_length)
+        print(f"Targets shape: {targets.shape}")  # Should be (batch_size, 1)
     return train_loader, val_loader
 
 # Train the model
@@ -91,6 +94,7 @@ def train(model, epochs, optimizer, loss_fn, train_loader):
         total_preds = 0
 
         for inputs, targets in train_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = loss_fn(outputs, targets)
@@ -114,6 +118,7 @@ def eval(model, val_loader):
         total_preds = 0
 
         for inputs, targets in val_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
             preds = (outputs > 0.5).float()  # Binary classification threshold
             correct_preds += (preds == targets).sum().item()
@@ -124,20 +129,33 @@ def eval(model, val_loader):
 
 
 if __name__ == "__main__":
+    # Check for GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    # Read and tokenize the dataset
     print("Reading dataset")
     emails, labels, vocab_size = read_and_tokenize_data("\\Users\\rudy_\OneDrive\Desktop\Phishing Detector\Phishing_Email.csv")
 
+    # Initialize the model
     embedding_dim = 64
     hidden_dim = 128
     output_dim = 1
-    model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
 
+    # Prepare data for training
     print("Preparing data for training")
     train_loader, val_loader = prep_data(emails, labels)
+    
+    # Training the model
     epochs = 5
     loss_fn = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     print("Training")
     train(model, epochs, optimizer, loss_fn, train_loader)
+    
+    # Evaluate the model
     print("Evaluating")
     eval(model, val_loader)
