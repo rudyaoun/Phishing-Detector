@@ -80,9 +80,6 @@ def prep_data(emails, labels):
     val_data = TensorDataset(X_val, y_val)
     train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
-    for inputs, targets in train_loader:
-        print(f"Inputs shape: {inputs.shape}")  # Should be (batch_size, max_length)
-        print(f"Targets shape: {targets.shape}")  # Should be (batch_size, 1)
     return train_loader, val_loader
 
 # Train the model
@@ -141,8 +138,6 @@ if __name__ == "__main__":
     embedding_dim = 64
     hidden_dim = 128
     output_dim = 1
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
     model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
 
     # Prepare data for training
@@ -150,7 +145,7 @@ if __name__ == "__main__":
     train_loader, val_loader = prep_data(emails, labels)
     
     # Training the model
-    epochs = 5
+    epochs = 20
     loss_fn = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     print("Training")
@@ -159,3 +154,8 @@ if __name__ == "__main__":
     # Evaluate the model
     print("Evaluating")
     eval(model, val_loader)
+
+    if input("Save model? (y/n): ") == "y":
+        # Save model state dictionary
+        torch.save(model.state_dict(), "phishing_detector.pth")
+        print("Model saved as phishing_email_detector.pth")
