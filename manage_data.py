@@ -34,7 +34,7 @@ if __name__ == "__main__":
         counter = 0
         while cur < len(emails):
             counter += 1
-            if type(emails[cur]) != str or len(emails[cur]) == 0:
+            if type(emails[cur]) != str or len(emails[cur]) == 0 or not (labels[cur] == 0 or labels[cur] == 1):
                 emails.pop(cur)
                 labels.pop(cur)
             else:
@@ -46,7 +46,8 @@ if __name__ == "__main__":
         phishes = sum(labels)
         print(f"Phishing Emails: {phishes}")
         print(f"Valid Emails: {total - phishes}")
-        print(f"Skipped over: {counter - total}\n")
+        print(f"Skipped over: {counter - total}")
+        print(f"Invalid Rows: {len(labels) - len(emails)}\n")
 
         # Add to the combined dataset
         combined_data["Email"] += emails

@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -26,27 +27,36 @@ class PhishingRNN(nn.Module):
 
 # Read in dataset of emails for training and tokenize
 # each email to feed into model
-def read_and_tokenize_data(csv_path):
+def read_and_tokenize_data():
     # Phishing Dataset
-    data = pd.read_csv(csv_path)
+    data = pd.read_csv("Datasets/full_dataset.csv")
 
     # Email contents and labels of phishing emails
-    texts = data['Email'].values
+    emails = data['Email'].values
     labels = data['Label'].values
 
+    # Get rid of empty strings (bad data)
+    cur = 0
+    while cur < len(emails):
+        if type(emails[cur]) != str or len(emails[cur].split()) > 500:
+            emails = np.delete(emails, cur)
+            labels = np.delete(labels, cur)
+        else:
+            cur += 1
+
     # Tokenize each email (email string -> list of words)
-    tokenized_texts = [nltk.word_tokenize(text) for text in texts]
+    tokenized_emails = [nltk.word_tokenize(email) for email in emails]
 
     # Build vocabulary (each unique word gets an index, 0 for unknowns)
-    all_tokens = [token for tokens in tokenized_texts for token in tokens]
+    all_tokens = [token for tokens in tokenized_emails for token in tokens]
     vocab = Counter(all_tokens)
     vocab_size = len(vocab)
     word_to_idx = {word: idx + 1 for idx, (word, _) in enumerate(vocab.most_common())}
     word_to_idx['<UNK>'] = 0  # Add <UNK> token for unknown words
 
-    # Turn each email into a sequence of the corresponding indices of each word and pad up to 1000 words
-    max_length = 1000
-    sequences = [[word_to_idx.get(word, 0) for word in text] for text in tokenized_texts]
+    # Turn each email into a sequence of the corresponding indices of each word and pad up to 500 words
+    max_length = 500
+    sequences = [[word_to_idx.get(word, 0) for word in text] for text in tokenized_emails]
     padded_sequences = [seq[:max_length] + [0] * (max_length - len(seq)) if len(seq) < max_length else seq[:max_length] for seq in sequences]
     return padded_sequences, labels, vocab_size
 
@@ -111,30 +121,51 @@ if __name__ == "__main__":
 
     # Read and tokenize the dataset
     print("Reading dataset")
-    emails, labels, vocab_size = read_and_tokenize_data("\\Users\\rudy_\OneDrive\Desktop\Phishing Detector\Phishing_Email.csv")
-
-    # Initialize the model
+    emails, labels, vocab_size = read_and_tokenize_data()
     embedding_dim = 64
     hidden_dim = 128
     output_dim = 1
-    model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
 
-    # Prepare data for training
-    print("Preparing data for training")
-    train_loader, val_loader = prep_data(emails, labels)
-    
-    # Training the model
-    epochs = 20
-    loss_fn = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    print("Training")
-    train(model, epochs, optimizer, loss_fn, train_loader)
-    
-    # Evaluate the model
-    print("Evaluating")
-    eval(model, val_loader)
+    if input("Train new model or evaluate latest model on full dataset? (train/evaluate): ") == "train":
+        # Initialize the model
+        print("Creating new model")
+        model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
 
-    if input("Save model? (y/n): ") == "y":
-        # Save model state dictionary
-        torch.save(model.state_dict(), "phishing_detector.pth")
-        print("Model saved as phishing_email_detector.pth")
+        # Prepare data for training
+        print("Preparing data for training")
+        train_loader, val_loader = prep_data(emails, labels)
+    
+        # Training the model
+        epochs = 5
+        loss_fn = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        print("Training model")
+        train(model, epochs, optimizer, loss_fn, train_loader)
+    
+        # Evaluate the model
+        print("Evaluating model")
+        eval(model, val_loader)
+
+        if input("Save model? (y/n): ") == "y":
+            # Save model state dictionary
+            torch.save(model.state_dict(), "phishing_detector.pth")
+            print("Model saved as phishing_detector.pth")
+
+    else:
+        # Load the latest model
+        print("Loading model")
+        model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim)
+        model.load_state_dict(torch.load("phishing_detector.pth"))
+        model = model.to(device)
+
+
+        # Preparing data to test model
+        print("Preparing data for evaluation")
+        sequences_tensor = torch.tensor(emails, dtype=torch.long)
+        labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
+        data = TensorDataset(sequences_tensor, labels_tensor)
+        data_loader = DataLoader(data, batch_size=64, shuffle=False)
+
+        # Evaluate the model
+        print("Evaluating model")
+        eval(model, data_loader)
