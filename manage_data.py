@@ -32,16 +32,17 @@ if __name__ == "__main__":
         cur = 0
         while cur < len(emails):
             if type(emails[cur]) != str or len(emails[cur]) == 0:
-                emails = np.delete(emails, cur)
-                labels = np.delete(labels, cur)
+                emails.pop(cur)
+                labels.pop(cur)
             else:
                 cur += 1
         
         # Get stats for this individual datasets
         print(file_names[i] + " data:")
+        total = len(labels)
         phishes = sum(labels)
         print(f"Phishing Emails: {phishes}")
-        print(f"Valid Emails: {len(labels) - phishes}\n")
+        print(f"Valid Emails: {total - phishes}\n")
 
         # Add to the combined dataset
         combined_data["Email"] += emails
@@ -52,7 +53,12 @@ if __name__ == "__main__":
     df.to_csv("Datasets/full_dataset.csv", index=False)
     
     # Get combined data stats
-    email_lengths = [len(email) for email in data["Email"]]
+    print("Combined data:")
+    total = len(combined_data["Label"])
+    phishes = sum(combined_data["Label"])
+    print(f"Phishing Emails: {phishes}")
+    print(f"Valid Emails: {total - phishes}")
+    email_lengths = [len(email.split(" ")) for email in combined_data["Email"]]
     print(f"Mean: {np.mean(email_lengths):.2f}, Median: {np.median(email_lengths)}, Max: {max(email_lengths)}")
 
-    plt.show()
+    # Plot the distribution of word lengths
