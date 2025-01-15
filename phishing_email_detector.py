@@ -31,17 +31,8 @@ def read_and_tokenize_data(csv_path):
     data = pd.read_csv(csv_path)
 
     # Email contents and labels of phishing emails
-    texts = data['Email Text'].values
-    labels = data['Email Type'].values
-
-    # Get rid of empty strings (bad data) and long emails (unusable)
-    cur = 0
-    while cur < len(texts):
-        if type(texts[cur]) != str or len(texts[cur].split()) > 500:
-            texts = np.delete(texts, cur)
-            labels = np.delete(labels, cur)
-        else:
-            cur += 1
+    texts = data['Email'].values
+    labels = data['Label'].values
 
     # Tokenize each email (email string -> list of words)
     tokenized_texts = [nltk.word_tokenize(text) for text in texts]
