@@ -30,7 +30,10 @@ if __name__ == "__main__":
 
         # Get rid of empty strings (bad data)
         cur = 0
+        total = len(emails)
+        counter = 0
         while cur < len(emails):
+            counter += 1
             if type(emails[cur]) != str or len(emails[cur]) == 0:
                 emails.pop(cur)
                 labels.pop(cur)
@@ -42,7 +45,8 @@ if __name__ == "__main__":
         total = len(labels)
         phishes = sum(labels)
         print(f"Phishing Emails: {phishes}")
-        print(f"Valid Emails: {total - phishes}\n")
+        print(f"Valid Emails: {total - phishes}")
+        print(f"Skipped over: {counter - total}\n")
 
         # Add to the combined dataset
         combined_data["Email"] += emails
@@ -58,7 +62,12 @@ if __name__ == "__main__":
     phishes = sum(combined_data["Label"])
     print(f"Phishing Emails: {phishes}")
     print(f"Valid Emails: {total - phishes}")
-    email_lengths = [len(email.split(" ")) for email in combined_data["Email"]]
+    email_lengths = [len(email.split()) for email in combined_data["Email"]]
     print(f"Mean: {np.mean(email_lengths):.2f}, Median: {np.median(email_lengths)}, Max: {max(email_lengths)}")
 
     # Plot the distribution of word lengths
+    plt.hist(email_lengths, bins=100, range=(0, 5000))
+    plt.xlabel("Number of Words")
+    plt.ylabel("Number of Emails")
+    plt.title("Distribution of Email Lengths")
+    plt.show()

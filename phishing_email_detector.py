@@ -44,8 +44,8 @@ def read_and_tokenize_data(csv_path):
     word_to_idx = {word: idx + 1 for idx, (word, _) in enumerate(vocab.most_common())}
     word_to_idx['<UNK>'] = 0  # Add <UNK> token for unknown words
 
-    # Turn each email into a sequence of the corresponding indices of each word and pad up to 500 words
-    max_length = 500
+    # Turn each email into a sequence of the corresponding indices of each word and pad up to 1000 words
+    max_length = 1000
     sequences = [[word_to_idx.get(word, 0) for word in text] for text in tokenized_texts]
     padded_sequences = [seq[:max_length] + [0] * (max_length - len(seq)) if len(seq) < max_length else seq[:max_length] for seq in sequences]
     return padded_sequences, labels, vocab_size
