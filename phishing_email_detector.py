@@ -33,18 +33,6 @@ def read_and_tokenize_data(csv_path):
     # Email contents and labels of phishing emails
     texts = data['Email Text'].values
     labels = data['Email Type'].values
-    labels = [0 if label=="Safe Email" else 1 for label in labels]
-
-    # # Getting statistics on lengths of emails to get a good max for later
-    # email_lengths = [len(email.split()) for email in texts]
-    # plt.hist(email_lengths, bins=500, range=(0, 5000))
-    # plt.xlabel("Number of Words")
-    # plt.ylabel("Number of Emails")
-    # plt.title("Distribution of Email Lengths")
-    # plt.show()
-
-    # # Check summary statistics
-    # print(f"Mean: {np.mean(email_lengths):.2f}, Median: {np.median(email_lengths)}, Max: {max(email_lengths)}")
 
     # Get rid of empty strings (bad data) and long emails (unusable)
     cur = 0
