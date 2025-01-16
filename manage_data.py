@@ -4,29 +4,21 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     # file name: (emails column, labels column)
-    files = {"phishing_emails.csv": ("Email Text", "Email Type"), "CEAS_08.csv": ("body", "label"), "Enron.csv": ("body", "label"), "Ling.csv": ("body", "label"), "Nazario.csv": ("body", "label"), "nigerian_fraud.csv": ("body", "label"), "spam_assassin.csv": ("body", "label")}
-    file_names = list(files.keys())
+    files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
 
     # Combined data to be used for training, evaluation, etc.
     combined_data = {"Email": [], "Label": []}
 
     # Get data for each individual dataset
     # Also combine the data into full dataset
-    for i in range(len(file_names)):
+    for file in files:
         # Load the dataset
-        file_path = "Datasets/" + file_names[i]
+        file_path = "Datasets/" + file
         data = pd.read_csv(file_path)
 
         # Load the emails and the labels
-        email_col = files[file_names[i]][0]
-        label_col = files[file_names[i]][1]
-        emails = data[email_col].values
-        emails = [email for email in emails]
-        labels = data[label_col].values
-        if label_col == "Email Type":
-            labels = [0 if label=="Safe Email" else 1 for label in labels]
-        else:
-            labels = [label for label in labels]
+        emails = [email for email in data["Email"].values]
+        labels = [label for label in data["Label"].values]
 
         # Get rid of empty strings (bad data)
         cur = 0
@@ -41,7 +33,7 @@ if __name__ == "__main__":
                 cur += 1
         
         # Get stats for this individual datasets
-        print(file_names[i] + " data:")
+        print(file + " data:")
         total = len(labels)
         phishes = sum(labels)
         print(f"Phishing Emails: {phishes}")
