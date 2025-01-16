@@ -1,4 +1,4 @@
-import sys
+import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -119,14 +119,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Read and tokenize the dataset
-    print("Reading dataset")
-    emails, labels, vocab_size = read_and_tokenize_data()
-    embedding_dim = 64
-    hidden_dim = 128
-    output_dim = 1
-
     if input("Train new model or evaluate latest model on full dataset? (train/evaluate): ") == "train":
+        # Read and tokenize the dataset
+        print("Reading dataset")
+        emails, labels, vocab_size = read_and_tokenize_data()
+        embedding_dim = 64
+        hidden_dim = 128
+        output_dim = 1
+        
         # Initialize the model
         print("Creating new model")
         model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
@@ -148,8 +148,12 @@ if __name__ == "__main__":
 
         if input("Save model? (y/n): ") == "y":
             # Save model state dictionary
+            metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
+                        "hidden_dim": hidden_dim, "output_dim": output_dim}
+            file = open("phishing_detector_metadata.json", "w")
+            json.dump(metadata, file)
             torch.save(model.state_dict(), "phishing_detector.pth")
-            print("Model saved as phishing_detector.pth")
+            print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")
 
     else:
         # Load the latest model
