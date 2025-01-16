@@ -15,8 +15,8 @@ class PhishingRNN(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim):
         super(PhishingRNN, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
-        self.dropout = nn.Dropout(0.4)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=2, batch_first=True)
+        self.dropout = nn.Dropout(0.5)
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.sigmoid = nn.Sigmoid()
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     if input("Train new model or load latest model? (train/load): ") == "train":
         # Read and tokenize the dataset
         print("Reading dataset")
-        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/CEAS_08.csv")
+        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/full_dataset.csv")
         embedding_dim = 64
         hidden_dim = 128
         output_dim = 1
@@ -168,6 +168,26 @@ if __name__ == "__main__":
         # Evaluate the model
         print("Evaluating model")
         eval(model, val_loader)
+
+        print("\n\nEvaluating on all datasets")
+        files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
+        for file in files:
+            # Load the dataset
+            file_path = "Datasets/" + file
+            print("Reading dataset " + file)
+            emails, labels, _, _ = read_and_tokenize_data(file_path)
+
+            # Preparing data to test model
+            print("Preparing data for evaluation")
+            sequences_tensor = torch.tensor(emails, dtype=torch.long)
+            labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
+            data = TensorDataset(sequences_tensor, labels_tensor)
+            data_loader = DataLoader(data, batch_size=32, shuffle=False)
+
+            # Evaluate the model
+            print("Evaluating model on dataset " + file)
+            eval(model, data_loader)
+            print("")
 
         if input("Save model? (y/n): ") == "y":
             print("Testing model")
@@ -193,7 +213,7 @@ if __name__ == "__main__":
         print("Model loaded")
 
         if input("Evaluate on datasets or use model on new input? (eval/use): ") == "eval":
-            files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
+            files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
             for file in files:
                 # Load the dataset
                 file_path = "Datasets/" + file
@@ -213,56 +233,84 @@ if __name__ == "__main__":
                 print("")
         else:
             email = """
-            Nvidia Virtual Tech Talk: Innovating Hardware
-            <https://events.berkeley.edu/eecs/event/286125-nvidia-virtual-tech-talk-inn=
-            ovating-hardware>
-            January 30th
-            5:30pm-6:30pm
+            Beloved in the Lord Jesus Christ, PLEASE ENDEAVOUR TO USE IT FOR THE
+            CHILDREN OF GOD.
 
-            REGISTER HERE
-            <https://nvidia.eightfold.ai/events/candidate/landing?plannedEventId=3Dxgdn=
-            1yLL5>
+            My name is Mother Doris Killam 63years old woman from United States of
+            America. I am married to Engineer Pitt Killam who till his death Worked
+            with Willbros, a U.S oil Engineering firm here in Nigeria, we were
+            married for Thirteen (13) years without a child.
 
-            The link to join will be shared  upon registering for the event.
-            Please refrain from forwarding or sharing the link.
+            He died on Saturday, 18 February 2006 after my late husband Eng. Pitt
+            and Eight (8) other foreign oil workers were abducted by militia groups
+            active in the Niger Delta Region of Nigeria, on the process of
+            negotiation by the Nigerian Government and the Militant Group
+            unfortunately, my
+            husband Eng. Pitt Killam died, before his death, we deposit a sum of
+            $2.5 Million Dollars which was proceed of a contract work he just
+            concluded with the Nigerian Ports authority.
 
-            NVIDIA=E2=80=99s invention of the GPU in 1999 sparked the growth of the PC =
-            gaming
-            market, refined computer graphics, ignited the era of modern AI and is
-            fueling the creation of the metaverse. Come explore the future of AI
-            hardware through an engaging conversation with engineers as they discuss
-            the impactful work they do, the challenges they face, and the skills and
-            experience we value to join our teams.
+            PLEASE FIND FACT ON THE INFORMATION FROM THE WEBSITE BELOW.
 
-            The University Recruiting team will share information about NVIDIA=E2=80=99=
-            s
-            corporate culture, how we support our employees, as well as internship
-            opportunities and how to apply.
+            http://news.bbc.co.uk/2/hi/africa/4726680.stm
 
-            Speakers:
+            After his painful death I decided not to re-marry or get a child
+            outside my matrimonial home. My Doctor told me that I would not last
+            for the
+            next three months due to cancer problem. Though what disturbs me most
+            is my partial stroke as a result of high blood pressure.
 
-            *Ankit Garg*
-            Formal Verification Manager
-            CPU Formal Verification Team
+            Having known my condition I decided to donate this funds to church or
+            better still a Christian individual that will utilize this money the
+            way
+            I am going to instruct herein. I want a church or individual that will
+            use this money to fund churches, orphanages and widows propagating the
+            word of God and to ensure that the house of God is maintained.
 
-            *Kenny Tang*
-            GPU Architect Engineer
-            Full Chip Architecture Team
+            The Bible made us to understand that blessed is the hand that grivet. I
+            took this decision because I dont have any child that will
+            inherit
+            this money and my husband's relatives are not Christians and I
+            dont
+            want my husband's hard earned money to be misused by unbelievers. I
+            dont want a situation where this money will be used in an
+            ungodly
+            manner, hence the reason for taking this bold decision.
 
-            [image: image.png]
-            *-------------------------------------*
-            *James Greene | **Corporate Access Manager*
+            I am not afraid of death hence I know where I am going. I know that I
+            am going to be in the bosom of the Lord. Exodus 14 VS 14 says that the
+            lord will fight my case and I shall hold my peace. With God all things
+            are possible. As soon as I receive your reply I will want you to give
+            me
+            your
 
-            *[he/him/his]*
-            Dept. of Electrical Engineering & Computer Sciences (EECS)
-            231 Cory Hall
-            University of California, Berkeley
+            Name:...........................
+            Address:........................
+            Sex/age:........................
+            Phone:..........................
+            Occupation:.....................
 
-            *If you or someone you know is experiencing financial, food, housing,
-            mental health, or other basic needs challenges - you can find support &
-            services at:*
-            *https://basicneeds.berkeley.edu/home
-            <https://basicneeds.berkeley.edu/home>*
+            I will send a copy to the bank. For identification when you will
+            contact them. I want you and the church to always pray for me because
+            the
+            lord is my shepherd and I shall not want.
+
+            My happiness is that I lived a life of a worthy Christian. Please
+            assure me that you will act accordingly as I stated herein.
+
+            Note: this must be kept confidentially from eyes and ears of my
+            husband's family. Hoping to hear from you.
+
+            Reply me and Remain blessed in the name of the Lord.
+
+            Regards,
+            Mrs. Doris Killam.
+
+            Private email Reply me here:(motherdorisk9@yahoo.com.hk)
+            _________________________________________________________________
+            Connect to the next generation of MSN Messenger 
+            http://imagine-msn.com/messenger/launch80/default.aspx?locale=en-us&source=wlmailtagline
+
             """
             phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
             print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")

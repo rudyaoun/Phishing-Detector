@@ -4,7 +4,14 @@ import matplotlib.pyplot as plt
 import random
 
 if __name__ == "__main__":
-    files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
+    files = [
+        # "phishing_emails.csv", 
+        "CEAS_08.csv", 
+        # "Enron.csv", 
+        # "Ling.csv", 
+        "nigerian_fraud.csv", 
+        # "spam_assassin.csv"
+        ]
 
     # Combined data to be used for training, evaluation, etc.
     combined_data = {"Email": [], "Label": []}
@@ -45,7 +52,7 @@ if __name__ == "__main__":
         combined_data["Email"] += emails
         combined_data["Label"] += labels
 
-        # # Print out some random emails
+        # Print out some random emails
         # for i in random.sample(range(1, len(emails) + 1), 10):
         #     print(emails[i])
         #     print(labels[i])
