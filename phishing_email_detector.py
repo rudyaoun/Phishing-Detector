@@ -16,6 +16,7 @@ class PhishingRNN(nn.Module):
         super(PhishingRNN, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.dropout = nn.Dropout(0.4)
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.sigmoid = nn.Sigmoid()
 
@@ -64,12 +65,15 @@ def read_and_tokenize_data(csv_path):
 def prep_data(emails, labels):
     sequences_tensor = torch.tensor(emails, dtype=torch.long)
     labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
-    X_train, X_val, y_train, y_val = train_test_split(sequences_tensor, labels_tensor, test_size=0.2, random_state=42)
+    X_train, X_temp, y_train, y_temp = train_test_split(sequences_tensor, labels_tensor, test_size=0.4, random_state=42)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
     train_data = TensorDataset(X_train, y_train)
     val_data = TensorDataset(X_val, y_val)
+    test_data = TensorDataset(X_test, y_test)
     train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
-    return train_loader, val_loader
+    test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
+    return train_loader, val_loader, test_loader
 
 # Train the model
 def train(model, epochs, optimizer, loss_fn, train_loader):
@@ -141,7 +145,7 @@ if __name__ == "__main__":
     if input("Train new model or load latest model? (train/load): ") == "train":
         # Read and tokenize the dataset
         print("Reading dataset")
-        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/full_dataset.csv")
+        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/CEAS_08.csv")
         embedding_dim = 64
         hidden_dim = 128
         output_dim = 1
@@ -152,7 +156,7 @@ if __name__ == "__main__":
 
         # Prepare data for training
         print("Preparing data for training")
-        train_loader, val_loader = prep_data(emails, labels)
+        train_loader, val_loader, test_loader = prep_data(emails, labels)
     
         # Training the model
         epochs = 5
@@ -166,6 +170,8 @@ if __name__ == "__main__":
         eval(model, val_loader)
 
         if input("Save model? (y/n): ") == "y":
+            print("Testing model")
+            eval(model, test_loader)
             # Save model state dictionary
             metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
                         "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
@@ -204,9 +210,59 @@ if __name__ == "__main__":
                 # Evaluate the model
                 print("Evaluating model on dataset " + file)
                 eval(model, data_loader)
-
-                print("\n")
+                print("")
         else:
-            email = input("Enter email for phishing prediction: ")
+            email = """
+            Nvidia Virtual Tech Talk: Innovating Hardware
+            <https://events.berkeley.edu/eecs/event/286125-nvidia-virtual-tech-talk-inn=
+            ovating-hardware>
+            January 30th
+            5:30pm-6:30pm
+
+            REGISTER HERE
+            <https://nvidia.eightfold.ai/events/candidate/landing?plannedEventId=3Dxgdn=
+            1yLL5>
+
+            The link to join will be shared  upon registering for the event.
+            Please refrain from forwarding or sharing the link.
+
+            NVIDIA=E2=80=99s invention of the GPU in 1999 sparked the growth of the PC =
+            gaming
+            market, refined computer graphics, ignited the era of modern AI and is
+            fueling the creation of the metaverse. Come explore the future of AI
+            hardware through an engaging conversation with engineers as they discuss
+            the impactful work they do, the challenges they face, and the skills and
+            experience we value to join our teams.
+
+            The University Recruiting team will share information about NVIDIA=E2=80=99=
+            s
+            corporate culture, how we support our employees, as well as internship
+            opportunities and how to apply.
+
+            Speakers:
+
+            *Ankit Garg*
+            Formal Verification Manager
+            CPU Formal Verification Team
+
+            *Kenny Tang*
+            GPU Architect Engineer
+            Full Chip Architecture Team
+
+            [image: image.png]
+            *-------------------------------------*
+            *James Greene | **Corporate Access Manager*
+
+            *[he/him/his]*
+            Dept. of Electrical Engineering & Computer Sciences (EECS)
+            231 Cory Hall
+            University of California, Berkeley
+
+            *If you or someone you know is experiencing financial, food, housing,
+            mental health, or other basic needs challenges - you can find support &
+            services at:*
+            *https://basicneeds.berkeley.edu/home
+            <https://basicneeds.berkeley.edu/home>*
+            """
             phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
             print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")

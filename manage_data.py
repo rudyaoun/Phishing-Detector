@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 
 if __name__ == "__main__":
     files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
@@ -43,6 +44,11 @@ if __name__ == "__main__":
         # Add to the combined dataset
         combined_data["Email"] += emails
         combined_data["Label"] += labels
+
+        # # Print out some random emails
+        # for i in random.sample(range(1, len(emails) + 1), 10):
+        #     print(emails[i])
+        #     print(labels[i])
 
     # Write the combined dataset to a csv
     df = pd.DataFrame(combined_data)
