@@ -119,7 +119,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    if input("Train new model or evaluate latest model on full dataset? (train/evaluate): ") == "train":
+    if input("Train new model or load latest model? (train/load): ") == "train":
         # Read and tokenize the dataset
         print("Reading dataset")
         emails, labels, vocab_size = read_and_tokenize_data()
@@ -152,16 +152,22 @@ if __name__ == "__main__":
                         "hidden_dim": hidden_dim, "output_dim": output_dim}
             file = open("phishing_detector_metadata.json", "w")
             json.dump(metadata, file)
+            file.close()
             torch.save(model.state_dict(), "phishing_detector.pth")
-            print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")
+            print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")        
 
     else:
         # Load the latest model
         print("Loading model")
-        model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim)
+        file = open("phishing_detector_metadata.json", "r")
+        metadata = json.load(file)
+        file.close()
+        model = PhishingRNN(metadata["vocab_size"] + 1, metadata["embedding_dim"], metadata["hidden_dim"], metadata["output_dim"])
         model.load_state_dict(torch.load("phishing_detector.pth"))
         model = model.to(device)
+        print("Model loaded")
 
+        
 
         # Preparing data to test model
         print("Preparing data for evaluation")
