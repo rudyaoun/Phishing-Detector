@@ -27,9 +27,9 @@ class PhishingRNN(nn.Module):
 
 # Read in dataset of emails for training and tokenize
 # each email to feed into model
-def read_and_tokenize_data():
+def read_and_tokenize_data(csv_path):
     # Phishing Dataset
-    data = pd.read_csv("Datasets/full_dataset.csv")
+    data = pd.read_csv(csv_path)
 
     # Email contents and labels of phishing emails
     emails = data['Email'].values
@@ -38,7 +38,7 @@ def read_and_tokenize_data():
     # Get rid of empty strings (bad data)
     cur = 0
     while cur < len(emails):
-        if type(emails[cur]) != str or len(emails[cur].split()) > 500:
+        if type(emails[cur]) != str or len(emails[cur].split()) > 1000:
             emails = np.delete(emails, cur)
             labels = np.delete(labels, cur)
         else:
@@ -54,11 +54,11 @@ def read_and_tokenize_data():
     word_to_idx = {word: idx + 1 for idx, (word, _) in enumerate(vocab.most_common())}
     word_to_idx['<UNK>'] = 0  # Add <UNK> token for unknown words
 
-    # Turn each email into a sequence of the corresponding indices of each word and pad up to 500 words
-    max_length = 500
+    # Turn each email into a sequence of the corresponding indices of each word and pad up to 1000 words
+    max_length = 1000
     sequences = [[word_to_idx.get(word, 0) for word in text] for text in tokenized_emails]
     padded_sequences = [seq[:max_length] + [0] * (max_length - len(seq)) if len(seq) < max_length else seq[:max_length] for seq in sequences]
-    return padded_sequences, labels, vocab_size
+    return padded_sequences, labels, vocab_size, word_to_idx
 
 # Prepare data to be passed into the model for training and/or prediction
 def prep_data(emails, labels):
@@ -113,6 +113,25 @@ def eval(model, val_loader):
         val_accuracy = correct_preds / total_preds
         print(f"Validation Accuracy: {val_accuracy:.4f}")
 
+# Make a prediction on a single email
+def predict_email(model, email_text, word_to_idx, max_length=1000, threshold=0.5):
+    # Tokenize and preprocess
+    tokenized_email = nltk.word_tokenize(email_text)
+    email_indices = [word_to_idx.get(word, 0) for word in tokenized_email]
+    padded_email = email_indices[:max_length] + [0] * (max_length - len(email_indices))
+    
+    # Convert to tensor
+    input_tensor = torch.tensor([padded_email], dtype=torch.long).to(device)
+    
+    # Predict
+    model.eval()
+    with torch.no_grad():
+        output = model(input_tensor)
+        phishing_probability = output.item()
+    
+    # Interpret result
+    prediction = "PHISHING" if phishing_probability > threshold else "SAFE"
+    return phishing_probability, prediction
 
 if __name__ == "__main__":
     # Check for GPU
@@ -122,7 +141,7 @@ if __name__ == "__main__":
     if input("Train new model or load latest model? (train/load): ") == "train":
         # Read and tokenize the dataset
         print("Reading dataset")
-        emails, labels, vocab_size = read_and_tokenize_data()
+        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/full_dataset.csv")
         embedding_dim = 64
         hidden_dim = 128
         output_dim = 1
@@ -149,7 +168,7 @@ if __name__ == "__main__":
         if input("Save model? (y/n): ") == "y":
             # Save model state dictionary
             metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
-                        "hidden_dim": hidden_dim, "output_dim": output_dim}
+                        "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
             file = open("phishing_detector_metadata.json", "w")
             json.dump(metadata, file)
             file.close()
@@ -167,15 +186,27 @@ if __name__ == "__main__":
         model = model.to(device)
         print("Model loaded")
 
-        
+        if input("Evaluate on datasets or use model on new input? (eval/use): ") == "eval":
+            files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
+            for file in files:
+                # Load the dataset
+                file_path = "Datasets/" + file
+                print("Reading dataset " + file)
+                emails, labels, _, _ = read_and_tokenize_data(file_path)
 
-        # Preparing data to test model
-        print("Preparing data for evaluation")
-        sequences_tensor = torch.tensor(emails, dtype=torch.long)
-        labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
-        data = TensorDataset(sequences_tensor, labels_tensor)
-        data_loader = DataLoader(data, batch_size=64, shuffle=False)
+                # Preparing data to test model
+                print("Preparing data for evaluation")
+                sequences_tensor = torch.tensor(emails, dtype=torch.long)
+                labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
+                data = TensorDataset(sequences_tensor, labels_tensor)
+                data_loader = DataLoader(data, batch_size=32, shuffle=False)
 
-        # Evaluate the model
-        print("Evaluating model")
-        eval(model, data_loader)
+                # Evaluate the model
+                print("Evaluating model on dataset " + file)
+                eval(model, data_loader)
+
+                print("\n")
+        else:
+            email = input("Enter email for phishing prediction: ")
+            phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
+            print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")

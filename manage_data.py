@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    # file name: (emails column, labels column)
     files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "Nazario.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
 
     # Combined data to be used for training, evaluation, etc.
@@ -32,7 +31,7 @@ if __name__ == "__main__":
             else:
                 cur += 1
         
-        # Get stats for this individual datasets
+        # Get stats for this individual dataset
         print(file + " data:")
         total = len(labels)
         phishes = sum(labels)
