@@ -1,4 +1,5 @@
 import json
+import csv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,9 +7,14 @@ import nltk
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.optim import AdamW
+from transformers import get_scheduler
+from torch.utils.data import DataLoader, TensorDataset, Dataset
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 from collections import Counter
+from transformers import BertTokenizer, BertForSequenceClassification
+
 
 # The RNN used to predict whether or not an email is phishing
 class PhishingRNN(nn.Module):
@@ -26,6 +32,36 @@ class PhishingRNN(nn.Module):
         output = self.fc(ht[-1])  # Use the final hidden state for prediction
         return self.sigmoid(output)
 
+# Specific Dataset format for use with bert
+class PhishingDataset(Dataset):
+    def __init__(self, emails, labels, tokenizer, max_length):
+        self.emails = emails
+        self.labels = labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.emails)
+
+    def __getitem__(self, idx):
+        email = self.emails[idx]
+        label = self.labels[idx]
+
+        # Tokenize the email
+        tokens = self.tokenizer(
+            email,
+            padding="max_length",
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt"
+        )
+        
+        return {
+            "input_ids": tokens["input_ids"].squeeze(0),  # Remove batch dimension
+            "attention_mask": tokens["attention_mask"].squeeze(0),
+            "label": torch.tensor(label, dtype=torch.long)
+        }
+
 # Read in dataset of emails for training and tokenize
 # each email to feed into model
 def read_and_tokenize_data(csv_path):
@@ -36,7 +72,7 @@ def read_and_tokenize_data(csv_path):
     emails = data['Email'].values
     labels = data['Label'].values
 
-    # Get rid of empty strings (bad data)
+    # Get rid of empty strings (bad data) and strings that are too long
     cur = 0
     while cur < len(emails):
         if type(emails[cur]) != str or len(emails[cur].split()) > 1000:
@@ -76,7 +112,7 @@ def prep_data(emails, labels):
     return train_loader, val_loader, test_loader
 
 # Train the model
-def train(model, epochs, optimizer, loss_fn, train_loader):
+def train_rnn(model, epochs, optimizer, loss_fn, train_loader):
     for epoch in range(epochs):
         model.train()
         running_loss = 0
@@ -101,7 +137,7 @@ def train(model, epochs, optimizer, loss_fn, train_loader):
         print(f"Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.4f}")
 
 # Evaluate the accuracy of hte model
-def eval(model, val_loader):
+def eval_rnn(model, val_loader):
     model.eval()
     with torch.no_grad():
         correct_preds = 0
@@ -136,12 +172,9 @@ def predict_email(model, email_text, word_to_idx, max_length=1000, threshold=0.5
     # Interpret result
     prediction = "PHISHING" if phishing_probability > threshold else "SAFE"
     return phishing_probability, prediction
-
-if __name__ == "__main__":
-    # Check for GPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
+    
+# Using the basic RNN model
+def rnn(device):
     if input("Train new model or load latest model? (train/load): ") == "train":
         # Read and tokenize the dataset
         print("Reading dataset")
@@ -163,11 +196,11 @@ if __name__ == "__main__":
         loss_fn = nn.BCELoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         print("Training model")
-        train(model, epochs, optimizer, loss_fn, train_loader)
+        train_rnn(model, epochs, optimizer, loss_fn, train_loader)
     
         # Evaluate the model
         print("Evaluating model")
-        eval(model, val_loader)
+        eval_rnn(model, val_loader)
 
         print("\n\nEvaluating on all datasets")
         files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
@@ -186,12 +219,12 @@ if __name__ == "__main__":
 
             # Evaluate the model
             print("Evaluating model on dataset " + file)
-            eval(model, data_loader)
+            eval_rnn(model, data_loader)
             print("")
 
         if input("Save model? (y/n): ") == "y":
             print("Testing model")
-            eval(model, test_loader)
+            eval_rnn(model, test_loader)
             # Save model state dictionary
             metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
                         "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
@@ -229,7 +262,7 @@ if __name__ == "__main__":
 
                 # Evaluate the model
                 print("Evaluating model on dataset " + file)
-                eval(model, data_loader)
+                eval_rnn(model, data_loader)
                 print("")
         else:
             email = """
@@ -314,3 +347,90 @@ if __name__ == "__main__":
             """
             phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
             print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")
+
+def train_bert(model, epochs, dataloader, optimizer):
+    # Learning rate scheduler
+    num_training_steps = len(dataloader) * epochs
+    lr_scheduler = get_scheduler("linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
+
+    # Training loop
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0
+        for batch in dataloader:
+            optimizer.zero_grad()
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["label"].to(device)
+
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
+            logits = outputs.logits
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+
+            running_loss += loss.item()
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(dataloader):.4f}")
+
+def eval_bert(model, dataloader):
+    model.eval()
+    predictions, true_labels = [], []
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["label"].to(device)
+
+            outputs = model(input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
+            preds = torch.argmax(logits, dim=-1)
+
+            predictions.extend(preds.cpu().numpy())
+            true_labels.extend(labels.cpu().numpy())
+
+    accuracy = accuracy_score(true_labels, predictions)
+    print(f"Accuracy: {accuracy:.2f}")
+
+# Using pretrained BERT model
+def bert(device):
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    model = BertForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=2).to(device)  # Binary classification
+
+    data = pd.read_csv("Datasets/CEAS_08.csv")
+    emails = [email for email in data["Email"].values]
+    labels = [label for label in data["Label"].values]
+
+    # Get rid of empty strings (bad data) and strings that are too long
+    cur = 0
+    while cur < len(emails):
+        if type(emails[cur]) != str or len(emails[cur].split()) > 512:
+            emails.pop(cur)
+            labels.pop(cur)
+        else:
+            cur += 1
+    
+    print(max(labels))
+    print(len(emails))
+
+    X_train, X_val, y_train, y_val = train_test_split(emails, labels, test_size=0.2, random_state=42)
+    train_dataset = PhishingDataset(X_train, y_train, tokenizer, max_length=512)
+    val_dataset = PhishingDataset(X_val, y_val, tokenizer, max_length=512)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    
+    optimizer = AdamW(model.parameters(), lr=5e-5)
+    train_bert(model, 3, train_loader, optimizer)
+
+    eval_bert(model, val_loader)
+
+if __name__ == "__main__":
+    # Check for GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    model_choice = input("Choose which model to use: (bert/rnn) ")
+    if model_choice == "rnn":
+        rnn(device)
+    else:
+        bert(device)

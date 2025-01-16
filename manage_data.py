@@ -5,12 +5,12 @@ import random
 
 if __name__ == "__main__":
     files = [
-        # "phishing_emails.csv", 
+        "phishing_emails.csv", 
         "CEAS_08.csv", 
-        # "Enron.csv", 
-        # "Ling.csv", 
+        "Enron.csv", 
+        "Ling.csv", 
         "nigerian_fraud.csv", 
-        # "spam_assassin.csv"
+        "spam_assassin.csv"
         ]
 
     # Combined data to be used for training, evaluation, etc.
