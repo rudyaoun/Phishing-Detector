@@ -1,5 +1,4 @@
 import json
-import csv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -7,14 +6,10 @@ import nltk
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import AdamW
-from transformers import get_scheduler
 from torch.utils.data import DataLoader, TensorDataset, Dataset
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 from collections import Counter
-from transformers import BertTokenizer, BertForSequenceClassification
-from manage_data.py import merge_datasets
+from manage_data import merge_datasets
 
 
 # The RNN used to predict whether or not an email is phishing
@@ -179,15 +174,16 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    model_choice = input("Would you like to use (1) the basic RNN or the (2) finetuned BERT model?")
-    if model_choice == 1:
-        if input("Would you like to (1) train a new RNN or (2) use the latest version?") == 1:
+    model_choice = input("Would you like to use (1) the basic RNN or the (2) finetuned BERT model? ")
+    if model_choice == "1":
+        if input("Would you like to (1) train a new RNN or (2) use the latest version? ") == "1":
             print("Enter 1 to use each of the following datasets.")
             files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "Nazario.csv", "spam_assassin.csv"]
             training_files = []
             for file in files:
-                if input(file + "?") == 1:
+                if input(file + "? ") == "1":
                     training_files.append(file)
+            print("\nMerging datasets")
             merge_datasets(files)
 
             # Read and tokenize the dataset
