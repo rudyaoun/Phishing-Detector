@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from collections import Counter
 from transformers import BertTokenizer, BertForSequenceClassification
+from manage_data.py import merge_datasets
 
 
 # The RNN used to predict whether or not an email is phishing
@@ -112,7 +113,7 @@ def prep_data(emails, labels):
     return train_loader, val_loader, test_loader
 
 # Train the model
-def train_rnn(model, epochs, optimizer, loss_fn, train_loader):
+def train(model, epochs, optimizer, loss_fn, train_loader):
     for epoch in range(epochs):
         model.train()
         running_loss = 0
@@ -137,7 +138,7 @@ def train_rnn(model, epochs, optimizer, loss_fn, train_loader):
         print(f"Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.4f}")
 
 # Evaluate the accuracy of hte model
-def eval_rnn(model, val_loader):
+def eval(model, val_loader):
     model.eval()
     with torch.no_grad():
         correct_preds = 0
@@ -172,81 +173,50 @@ def predict_email(model, email_text, word_to_idx, max_length=1000, threshold=0.5
     # Interpret result
     prediction = "PHISHING" if phishing_probability > threshold else "SAFE"
     return phishing_probability, prediction
-    
-# Using the basic RNN model
-def rnn(device):
-    if input("Train new model or load latest model? (train/load): ") == "train":
-        # Read and tokenize the dataset
-        print("Reading dataset")
-        emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/full_dataset.csv")
-        embedding_dim = 64
-        hidden_dim = 128
-        output_dim = 1
+
+if __name__ == "__main__":
+    # Check for GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    model_choice = input("Would you like to use (1) the basic RNN or the (2) finetuned BERT model?")
+    if model_choice == 1:
+        if input("Would you like to (1) train a new RNN or (2) use the latest version?") == 1:
+            print("Enter 1 to use each of the following datasets.")
+            files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "Nazario.csv", "spam_assassin.csv"]
+            training_files = []
+            for file in files:
+                if input(file + "?") == 1:
+                    training_files.append(file)
+            merge_datasets(files)
+
+            # Read and tokenize the dataset
+            print("Reading dataset")
+            emails, labels, vocab_size, word_to_idx = read_and_tokenize_data("Datasets/full_dataset.csv")
+            embedding_dim = 64
+            hidden_dim = 128
+            output_dim = 1
+            
+            # Initialize the model
+            print("Creating new model")
+            model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
+
+            # Prepare data for training
+            print("Preparing data for training")
+            train_loader, val_loader, test_loader = prep_data(emails, labels)
         
-        # Initialize the model
-        print("Creating new model")
-        model = PhishingRNN(vocab_size + 1, embedding_dim, hidden_dim, output_dim).to(device)
-
-        # Prepare data for training
-        print("Preparing data for training")
-        train_loader, val_loader, test_loader = prep_data(emails, labels)
-    
-        # Training the model
-        epochs = 5
-        loss_fn = nn.BCELoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
-        print("Training model")
-        train_rnn(model, epochs, optimizer, loss_fn, train_loader)
-    
-        # Evaluate the model
-        print("Evaluating model")
-        eval_rnn(model, val_loader)
-
-        print("\n\nEvaluating on all datasets")
-        files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
-        for file in files:
-            # Load the dataset
-            file_path = "Datasets/" + file
-            print("Reading dataset " + file)
-            emails, labels, _, _ = read_and_tokenize_data(file_path)
-
-            # Preparing data to test model
-            print("Preparing data for evaluation")
-            sequences_tensor = torch.tensor(emails, dtype=torch.long)
-            labels_tensor = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
-            data = TensorDataset(sequences_tensor, labels_tensor)
-            data_loader = DataLoader(data, batch_size=32, shuffle=False)
-
+            # Training the model
+            epochs = 5
+            loss_fn = nn.BCELoss()
+            optimizer = optim.Adam(model.parameters(), lr=0.001)
+            print("Training model")
+            train(model, epochs, optimizer, loss_fn, train_loader)
+        
             # Evaluate the model
-            print("Evaluating model on dataset " + file)
-            eval_rnn(model, data_loader)
-            print("")
+            print("Evaluating model")
+            eval(model, val_loader)
 
-        if input("Save model? (y/n): ") == "y":
-            print("Testing model")
-            eval_rnn(model, test_loader)
-            # Save model state dictionary
-            metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
-                        "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
-            file = open("phishing_detector_metadata.json", "w")
-            json.dump(metadata, file)
-            file.close()
-            torch.save(model.state_dict(), "phishing_detector.pth")
-            print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")        
-
-    else:
-        # Load the latest model
-        print("Loading model")
-        file = open("phishing_detector_metadata.json", "r")
-        metadata = json.load(file)
-        file.close()
-        model = PhishingRNN(metadata["vocab_size"] + 1, metadata["embedding_dim"], metadata["hidden_dim"], metadata["output_dim"])
-        model.load_state_dict(torch.load("phishing_detector.pth"))
-        model = model.to(device)
-        print("Model loaded")
-
-        if input("Evaluate on datasets or use model on new input? (eval/use): ") == "eval":
-            files = ["phishing_emails.csv", "CEAS_08.csv", "Enron.csv", "Ling.csv", "nigerian_fraud.csv", "spam_assassin.csv"]
+            print("\n\nEvaluating on all datasets")
             for file in files:
                 # Load the dataset
                 file_path = "Datasets/" + file
@@ -262,175 +232,33 @@ def rnn(device):
 
                 # Evaluate the model
                 print("Evaluating model on dataset " + file)
-                eval_rnn(model, data_loader)
+                eval(model, data_loader)
                 print("")
+
+            if input("Save model? (y/n): ") == "y":
+                print("Testing model")
+                eval(model, test_loader)
+                # Save model state dictionary
+                metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
+                            "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
+                file = open("phishing_detector_metadata.json", "w")
+                json.dump(metadata, file)
+                file.close()
+                torch.save(model.state_dict(), "phishing_detector.pth")
+                print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")
+
         else:
-            email = """
-            Beloved in the Lord Jesus Christ, PLEASE ENDEAVOUR TO USE IT FOR THE
-            CHILDREN OF GOD.
-
-            My name is Mother Doris Killam 63years old woman from United States of
-            America. I am married to Engineer Pitt Killam who till his death Worked
-            with Willbros, a U.S oil Engineering firm here in Nigeria, we were
-            married for Thirteen (13) years without a child.
-
-            He died on Saturday, 18 February 2006 after my late husband Eng. Pitt
-            and Eight (8) other foreign oil workers were abducted by militia groups
-            active in the Niger Delta Region of Nigeria, on the process of
-            negotiation by the Nigerian Government and the Militant Group
-            unfortunately, my
-            husband Eng. Pitt Killam died, before his death, we deposit a sum of
-            $2.5 Million Dollars which was proceed of a contract work he just
-            concluded with the Nigerian Ports authority.
-
-            PLEASE FIND FACT ON THE INFORMATION FROM THE WEBSITE BELOW.
-
-            http://news.bbc.co.uk/2/hi/africa/4726680.stm
-
-            After his painful death I decided not to re-marry or get a child
-            outside my matrimonial home. My Doctor told me that I would not last
-            for the
-            next three months due to cancer problem. Though what disturbs me most
-            is my partial stroke as a result of high blood pressure.
-
-            Having known my condition I decided to donate this funds to church or
-            better still a Christian individual that will utilize this money the
-            way
-            I am going to instruct herein. I want a church or individual that will
-            use this money to fund churches, orphanages and widows propagating the
-            word of God and to ensure that the house of God is maintained.
-
-            The Bible made us to understand that blessed is the hand that grivet. I
-            took this decision because I dont have any child that will
-            inherit
-            this money and my husband's relatives are not Christians and I
-            dont
-            want my husband's hard earned money to be misused by unbelievers. I
-            dont want a situation where this money will be used in an
-            ungodly
-            manner, hence the reason for taking this bold decision.
-
-            I am not afraid of death hence I know where I am going. I know that I
-            am going to be in the bosom of the Lord. Exodus 14 VS 14 says that the
-            lord will fight my case and I shall hold my peace. With God all things
-            are possible. As soon as I receive your reply I will want you to give
-            me
-            your
-
-            Name:...........................
-            Address:........................
-            Sex/age:........................
-            Phone:..........................
-            Occupation:.....................
-
-            I will send a copy to the bank. For identification when you will
-            contact them. I want you and the church to always pray for me because
-            the
-            lord is my shepherd and I shall not want.
-
-            My happiness is that I lived a life of a worthy Christian. Please
-            assure me that you will act accordingly as I stated herein.
-
-            Note: this must be kept confidentially from eyes and ears of my
-            husband's family. Hoping to hear from you.
-
-            Reply me and Remain blessed in the name of the Lord.
-
-            Regards,
-            Mrs. Doris Killam.
-
-            Private email Reply me here:(motherdorisk9@yahoo.com.hk)
-            _________________________________________________________________
-            Connect to the next generation of MSN Messenger 
-            http://imagine-msn.com/messenger/launch80/default.aspx?locale=en-us&source=wlmailtagline
-
-            """
+            print("Loading RNN")
+            file = open("phishing_detector_metadata.json", "r")
+            metadata = json.load(file)
+            file.close()
+            model = PhishingRNN(metadata["vocab_size"] + 1, metadata["embedding_dim"], metadata["hidden_dim"], metadata["output_dim"])
+            model.load_state_dict(torch.load("phishing_detector.pth"))
+            model = model.to(device)
+            print("RNN loaded\n")
+            email = input("Enter email for analysis: ")
             phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
             print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")
-
-def train_bert(model, epochs, dataloader, optimizer):
-    # Learning rate scheduler
-    num_training_steps = len(dataloader) * epochs
-    lr_scheduler = get_scheduler("linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
-
-    # Training loop
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0
-        for batch in dataloader:
-            optimizer.zero_grad()
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["label"].to(device)
-
-            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
-            logits = outputs.logits
-            loss.backward()
-            optimizer.step()
-            lr_scheduler.step()
-
-            running_loss += loss.item()
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(dataloader):.4f}")
-
-def eval_bert(model, dataloader):
-    model.eval()
-    predictions, true_labels = [], []
-    with torch.no_grad():
-        for batch in dataloader:
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["label"].to(device)
-
-            outputs = model(input_ids, attention_mask=attention_mask)
-            logits = outputs.logits
-            preds = torch.argmax(logits, dim=-1)
-
-            predictions.extend(preds.cpu().numpy())
-            true_labels.extend(labels.cpu().numpy())
-
-    accuracy = accuracy_score(true_labels, predictions)
-    print(f"Accuracy: {accuracy:.2f}")
-
-# Using pretrained BERT model
-def bert(device):
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    model = BertForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=2).to(device)  # Binary classification
-
-    data = pd.read_csv("Datasets/CEAS_08.csv")
-    emails = [email for email in data["Email"].values]
-    labels = [label for label in data["Label"].values]
-
-    # Get rid of empty strings (bad data) and strings that are too long
-    cur = 0
-    while cur < len(emails):
-        if type(emails[cur]) != str or len(emails[cur].split()) > 512:
-            emails.pop(cur)
-            labels.pop(cur)
-        else:
-            cur += 1
-    
-    print(max(labels))
-    print(len(emails))
-
-    X_train, X_val, y_train, y_val = train_test_split(emails, labels, test_size=0.2, random_state=42)
-    train_dataset = PhishingDataset(X_train, y_train, tokenizer, max_length=512)
-    val_dataset = PhishingDataset(X_val, y_val, tokenizer, max_length=512)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-    
-    optimizer = AdamW(model.parameters(), lr=5e-5)
-    train_bert(model, 3, train_loader, optimizer)
-
-    eval_bert(model, val_loader)
-
-if __name__ == "__main__":
-    # Check for GPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
-    model_choice = input("Choose which model to use: (bert/rnn) ")
-    if model_choice == "rnn":
-        rnn(device)
+        
     else:
-        bert(device)
+        print("NEED TO IMPLEMENT USING BERT MODEL")
