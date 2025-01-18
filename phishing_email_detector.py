@@ -237,19 +237,19 @@ if __name__ == "__main__":
                 # Save model state dictionary
                 metadata = {"vocab_size": vocab_size, "embedding_dim": embedding_dim, 
                             "hidden_dim": hidden_dim, "output_dim": output_dim, "word_to_idx": word_to_idx}
-                file = open("phishing_detector_metadata.json", "w")
+                file = open("Basic_RNN/phishing_detector_metadata.json", "w")
                 json.dump(metadata, file)
                 file.close()
-                torch.save(model.state_dict(), "phishing_detector.pth")
+                torch.save(model.state_dict(), "Basic_RNN/phishing_detector.pth")
                 print("Model saved as phishing_detector.pth\nMetadata saved as phishing_detector_metadata.json")
 
         else:
             print("Loading RNN")
-            file = open("phishing_detector_metadata.json", "r")
+            file = open("Basic_RNN/phishing_detector_metadata.json", "r")
             metadata = json.load(file)
             file.close()
             model = PhishingRNN(metadata["vocab_size"] + 1, metadata["embedding_dim"], metadata["hidden_dim"], metadata["output_dim"])
-            model.load_state_dict(torch.load("phishing_detector.pth"))
+            model.load_state_dict(torch.load("Basic_RNN/phishing_detector.pth"))
             model = model.to(device)
             print("RNN loaded\n")
             email = input("Enter email for analysis: ")
