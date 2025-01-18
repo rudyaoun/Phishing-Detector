@@ -6,10 +6,12 @@ import nltk
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import transformers
 from torch.utils.data import DataLoader, TensorDataset, Dataset
 from sklearn.model_selection import train_test_split
 from collections import Counter
 from manage_data import merge_datasets
+from transformers import BertTokenizer, BertForSequenceClassification
 
 
 # The RNN used to predict whether or not an email is phishing
@@ -252,9 +254,41 @@ if __name__ == "__main__":
             model.load_state_dict(torch.load("Basic_RNN/phishing_detector.pth"))
             model = model.to(device)
             print("RNN loaded\n")
-            email = input("Enter email for analysis: ")
+            print("Enter email for analysis:")
+            email = ""
+            cur = input()
+            while cur != "":
+                email += cur + "\n"
+                cur = input()
             phish_prob, pred = predict_email(model, email, metadata["word_to_idx"])
             print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")
         
     else:
-        print("NEED TO IMPLEMENT USING BERT MODEL")
+        print("Loading model")
+        tokenizer = BertTokenizer.from_pretrained("phishing_detector_bert")
+        model = BertForSequenceClassification.from_pretrained("phishing_detector_bert").to(device)
+        print("Model loaded")
+
+        print("Enter email for analysis:")
+        email = ""
+        cur = input()
+        while cur != "":
+            email += cur + "\n"
+            cur = input()
+
+        # Tokenize the input
+        tokenized_email = tokenizer(email, padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+
+        # Move input tensors to the device (GPU/CPU)
+        input_ids = tokenized_email["input_ids"].to(device)
+        attention_mask = tokenized_email["attention_mask"].to(device)
+
+        # Run the model and get predictions
+        # Make prediction
+        model.eval()
+        with torch.no_grad():
+            outputs = model(input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
+            phish_prob = torch.softmax(logits, dim=-1)[0, 1].item()  # Probability of phishing (class 1)
+        pred = "PHISHING" if phish_prob > 0.5 else "SAFE"
+        print(f"There's a {phish_prob*100}% chance that this is a phishing email.\nPrediction: {pred}")
